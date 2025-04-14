@@ -83,7 +83,7 @@ class API(api.API):
                     raise AuthenticationException(
                         self.credentials.username, self.credentials.database, self.credentials.server
                     ) from exception
-            raise
+            raise Exception(f'reauthorisation count {self.__reauthorize_count}')
 
     async def multi_call_async(self, calls):
         """Performs an async multi-call to the API
