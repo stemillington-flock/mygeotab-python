@@ -20,43 +20,8 @@ from mygeotab.exceptions import MyGeotabException, TimeoutException, Authenticat
 from mygeotab.serializers import json_serialize, json_deserialize
 
 
-class API(api.API):
+class APIAsync(api.API):
     """A simple, asynchronous, and Pythonic wrapper for the MyGeotab API."""
-
-    conn = None
-    session = None
-    __init = False
-
-    @staticmethod
-    def create(username, password, database, loop, cert=None):
-        """Returns a new async API object from an existing Credentials object.
-
-        :param credentials: The existing saved credentials.
-        :return: A new API object populated with MyGeotab credentials.
-        """
-        api =  API(
-            username=username,
-            password=password,
-            database=database
-        )
-
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_context.load_default_certs()
-        if hasattr(ssl, "OP_ENABLE_MIDDLEBOX_COMPAT"):
-            ssl_context.options |= ssl.OP_ENABLE_MIDDLEBOX_COMPAT
-
-        if cert:
-            if isinstance(cert, str):
-                ssl_context.load_cert_chain(cert)
-            elif isinstance(cert, tuple):
-                cer, key = cert
-                ssl_context.load_cert_chain(cer, key)
-
-        api.conn = aiohttp.TCPConnector(ssl=ssl_context, loop=loop)
-        api.session = aiohttp.ClientSession(connector=api.conn, raise_for_status=True)
-        api.__init = True
-
-        return api
     
     def __init__(
         self,
@@ -68,6 +33,7 @@ class API(api.API):
         timeout=DEFAULT_TIMEOUT,
         proxies=None,
         cert=None,
+        loop=None
     ):
         """
         Initialize the asynchronous MyGeotab API object with credentials.
@@ -83,6 +49,21 @@ class API(api.API):
         :raise Exception: Raises an Exception if a username, or one of the session_id or password is not provided.
         """
         super().__init__(username, password, database, session_id, server, timeout, proxies=proxies, cert=cert)
+
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ssl_context.load_default_certs()
+        if hasattr(ssl, "OP_ENABLE_MIDDLEBOX_COMPAT"):
+            ssl_context.options |= ssl.OP_ENABLE_MIDDLEBOX_COMPAT
+
+        if cert:
+            if isinstance(cert, str):
+                ssl_context.load_cert_chain(cert)
+            elif isinstance(cert, tuple):
+                cer, key = cert
+                ssl_context.load_cert_chain(cer, key)
+
+        self.conn = aiohttp.TCPConnector(ssl=ssl_context, loop=loop)
+        self.session = aiohttp.ClientSession(connector=api.conn, raise_for_status=True)
 
     async def call_async(self, method, **parameters):
         """Makes an async call to the API.
@@ -100,13 +81,8 @@ class API(api.API):
             self.authenticate()
         if "credentials" not in params and self.credentials.session_id:
             params["credentials"] = self.credentials.get_param()
-
-        result = await self._query(self._server, method, params, verify_ssl=self._is_verify_ssl, cert=self._cert)
-        if result is not None:
-            self.__reauthorize_count = 0
-        return result
     
-        """try:
+        try:
             result = await self._query(self._server, method, params, verify_ssl=self._is_verify_ssl, cert=self._cert)
             if result is not None:
                 self.__reauthorize_count = 0
@@ -123,7 +99,7 @@ class API(api.API):
                     raise AuthenticationException(
                         self.credentials.username, self.credentials.database, self.credentials.server
                     ) from exception
-            raise Exception(f'reauthorisation count {self.__reauthorize_count}')"""
+            raise 
 
     async def multi_call_async(self, calls):
         """Performs an async multi-call to the API
@@ -230,16 +206,6 @@ class API(api.API):
             ) as response: 
             content_type = response.headers.get("Content-Type")
             body = await response.text()
-        
-        """try:
-            response = self.session.post(
-                api_endpoint, data=json_serialize(params), headers=headers, timeout=timeout, allow_redirects=True
-            )
-            response.raise_for_status()
-            content_type = response.headers.get("Content-Type")
-            body = await response.text()
-        except (TimeoutError, asyncio.TimeoutError) as exc:
-            raise TimeoutException(server) from exc"""
 
         if content_type and "application/json" not in content_type.lower():
             return body
