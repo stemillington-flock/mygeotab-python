@@ -225,7 +225,14 @@ class API(api.API):
         params = dict(id=-1, method=method, params=parameters)
         headers = get_headers()
     
-        try:
+        response = self.session.post(
+                api_endpoint, data=json_serialize(params), headers=headers, timeout=timeout, allow_redirects=True
+            )
+        response.raise_for_status()
+        content_type = response.headers.get("Content-Type")
+        body = await response.text()
+        
+        """try:
             response = self.session.post(
                 api_endpoint, data=json_serialize(params), headers=headers, timeout=timeout, allow_redirects=True
             )
@@ -233,7 +240,8 @@ class API(api.API):
             content_type = response.headers.get("Content-Type")
             body = await response.text()
         except (TimeoutError, asyncio.TimeoutError) as exc:
-            raise TimeoutException(server) from exc
+            raise TimeoutException(server) from exc"""
+        
         if content_type and "application/json" not in content_type.lower():
             return body
         return api._process(json_deserialize(body))
