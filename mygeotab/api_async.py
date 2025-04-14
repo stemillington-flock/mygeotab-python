@@ -28,7 +28,7 @@ class API(api.API):
     __init = False
 
     @staticmethod
-    def create(username, password, database, cert=None):
+    def create(username, password, database, loop, cert=None):
         """Returns a new async API object from an existing Credentials object.
 
         :param credentials: The existing saved credentials.
@@ -52,10 +52,10 @@ class API(api.API):
                 cer, key = cert
                 ssl_context.load_cert_chain(cer, key)
 
-        api.conn = aiohttp.TCPConnector(ssl=ssl_context)
+        api.conn = aiohttp.TCPConnector(ssl=ssl_context, loop=loop)
         api.session = aiohttp.ClientSession(connector=api.conn)
         api.__init = True
-        
+
         return api
     
     def __init__(
