@@ -229,7 +229,7 @@ class API(api.API):
                 api_endpoint, data=json_serialize(params), headers=headers, timeout=timeout, allow_redirects=True
             ) as response: 
             content_type = response.headers.get("Content-Type")
-            body = response.text()
+            body = await response.text()
         
         """try:
             response = self.session.post(
@@ -240,8 +240,6 @@ class API(api.API):
             body = await response.text()
         except (TimeoutError, asyncio.TimeoutError) as exc:
             raise TimeoutException(server) from exc"""
-        
-        raise Exception(body)
 
         if content_type and "application/json" not in content_type.lower():
             return body
