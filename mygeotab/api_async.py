@@ -20,7 +20,7 @@ from mygeotab.exceptions import MyGeotabException, TimeoutException, Authenticat
 from mygeotab.serializers import json_serialize, json_deserialize
 
 
-class APIAsync(api.API):
+class API(api.API):
     """A simple, asynchronous, and Pythonic wrapper for the MyGeotab API."""
     
     def __init__(
