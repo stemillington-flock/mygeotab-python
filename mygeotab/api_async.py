@@ -54,7 +54,9 @@ class API(api.API):
 
         api.conn = aiohttp.TCPConnector(ssl=ssl_context)
         api.session = aiohttp.ClientSession(connector=api.conn)
-        __init = True
+        api.__init = True
+        
+        return api
     
     def __init__(
         self,
