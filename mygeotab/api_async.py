@@ -63,7 +63,7 @@ class API(api.API):
                 ssl_context.load_cert_chain(cer, key)
 
         self.conn = aiohttp.TCPConnector(ssl=ssl_context, loop=loop)
-        self.session = aiohttp.ClientSession(connector=api.conn, raise_for_status=True)
+        self.session = aiohttp.ClientSession(connector=self.conn, raise_for_status=True)
 
     async def call_async(self, method, **parameters):
         """Makes an async call to the API.
