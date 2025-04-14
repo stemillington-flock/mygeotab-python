@@ -23,6 +23,39 @@ from mygeotab.serializers import json_serialize, json_deserialize
 class API(api.API):
     """A simple, asynchronous, and Pythonic wrapper for the MyGeotab API."""
 
+    conn = None
+    session = None
+    __init = False
+
+    @staticmethod
+    async def create(username, password, database, cert=None):
+        """Returns a new async API object from an existing Credentials object.
+
+        :param credentials: The existing saved credentials.
+        :return: A new API object populated with MyGeotab credentials.
+        """
+        api =  API(
+            username=username,
+            password=password,
+            database=database
+        )
+
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ssl_context.load_default_certs()
+        if hasattr(ssl, "OP_ENABLE_MIDDLEBOX_COMPAT"):
+            ssl_context.options |= ssl.OP_ENABLE_MIDDLEBOX_COMPAT
+
+        if cert:
+            if isinstance(cert, str):
+                ssl_context.load_cert_chain(cert)
+            elif isinstance(cert, tuple):
+                cer, key = cert
+                ssl_context.load_cert_chain(cer, key)
+
+        api.conn = aiohttp.TCPConnector(ssl=ssl_context)
+        api.session = await aiohttp.ClientSession(connector=api.conn)
+        __init = True
+    
     def __init__(
         self,
         username,
@@ -67,7 +100,7 @@ class API(api.API):
             params["credentials"] = self.credentials.get_param()
 
         try:
-            result = await _query(self._server, method, params, verify_ssl=self._is_verify_ssl, cert=self._cert)
+            result = await self._query(self._server, method, params, verify_ssl=self._is_verify_ssl, cert=self._cert)
             if result is not None:
                 self.__reauthorize_count = 0
             return result
@@ -146,84 +179,54 @@ class API(api.API):
         """
         return await self.call_async("Remove", type_name=type_name, entity=entity)
 
-    @staticmethod
-    def from_credentials(credentials):
-        """Returns a new async API object from an existing Credentials object.
 
-        :param credentials: The existing saved credentials.
-        :return: A new API object populated with MyGeotab credentials.
+    async def server_call_async(self, method, server, timeout=DEFAULT_TIMEOUT, verify_ssl=True, **parameters):
+        """Makes an asynchronous call to an un-authenticated method on a server.
+
+        :param method: The method name.
+        :param server: The MyGeotab server.
+        :param timeout: The timeout to make the call, in seconds. By default, this is 300 seconds (or 5 minutes).
+        :param verify_ssl: If True, verify the SSL certificate. It's recommended not to modify this.
+        :param parameters: Additional parameters to send (for example, search=dict(id='b123') ).
+        :return: The JSON result (decoded into a dict) from the server.
+        :raise MyGeotabException: Raises when an exception occurs on the MyGeotab server.
+        :raise TimeoutException: Raises when the request does not respond after some time.
         """
-        return API(
-            username=credentials.username,
-            password=credentials.password,
-            database=credentials.database,
-            session_id=credentials.session_id,
-            server=credentials.server,
-        )
+        if method is None:
+            raise Exception("A method name must be specified")
+        if server is None:
+            raise Exception("A server (eg. my3.geotab.com) must be specified")
+        parameters = api.process_parameters(parameters)
+        return await self._query(server, method, parameters, timeout=timeout, verify_ssl=verify_ssl)
 
 
-async def server_call_async(method, server, timeout=DEFAULT_TIMEOUT, verify_ssl=True, **parameters):
-    """Makes an asynchronous call to an un-authenticated method on a server.
+    async def _query(self, server, method, parameters, timeout=DEFAULT_TIMEOUT, verify_ssl=True, cert=None):
+        """Formats and performs the asynchronous query against the API
 
-    :param method: The method name.
-    :param server: The MyGeotab server.
-    :param timeout: The timeout to make the call, in seconds. By default, this is 300 seconds (or 5 minutes).
-    :param verify_ssl: If True, verify the SSL certificate. It's recommended not to modify this.
-    :param parameters: Additional parameters to send (for example, search=dict(id='b123') ).
-    :return: The JSON result (decoded into a dict) from the server.
-    :raise MyGeotabException: Raises when an exception occurs on the MyGeotab server.
-    :raise TimeoutException: Raises when the request does not respond after some time.
-    """
-    if method is None:
-        raise Exception("A method name must be specified")
-    if server is None:
-        raise Exception("A server (eg. my3.geotab.com) must be specified")
-    parameters = api.process_parameters(parameters)
-    return await _query(server, method, parameters, timeout=timeout, verify_ssl=verify_ssl)
-
-
-async def _query(server, method, parameters, timeout=DEFAULT_TIMEOUT, verify_ssl=True, cert=None):
-    """Formats and performs the asynchronous query against the API
-
-    :param server: The server to query.
-    :param method: The method name.
-    :param parameters: A dict of parameters to send
-    :param timeout: The timeout to make the call, in seconds. By default, this is 300 seconds (or 5 minutes).
-    :param verify_ssl: Whether or not to verify SSL connections
-    :param cert: The path to client certificate. A single path to .pem file or a Tuple (.cer file, .pem file)
-    :return: The JSON-decoded result from the server
-    :raise MyGeotabException: Raises when an exception occurs on the MyGeotab server
-    :raise TimeoutException: Raises when the request does not respond after some time.
-    :raise aiohttp.ClientResponseError: Raises when there is an HTTP status code that indicates failure.
-    """
-    api_endpoint = api.get_api_url(server)
-    params = dict(id=-1, method=method, params=parameters)
-    headers = get_headers()
-
-    ssl_context = False
-    if verify_ssl or cert:
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ssl_context.load_default_certs()
-        if hasattr(ssl, "OP_ENABLE_MIDDLEBOX_COMPAT"):
-            ssl_context.options |= ssl.OP_ENABLE_MIDDLEBOX_COMPAT
-    if cert:
-        if isinstance(cert, str):
-            ssl_context.load_cert_chain(cert)
-        elif isinstance(cert, tuple):
-            cer, key = cert
-            ssl_context.load_cert_chain(cer, key)
-
-    conn = aiohttp.TCPConnector(ssl=ssl_context)
-    try:
-        async with aiohttp.ClientSession(connector=conn) as session:
-            response = await session.post(
+        :param server: The server to query.
+        :param method: The method name.
+        :param parameters: A dict of parameters to send
+        :param timeout: The timeout to make the call, in seconds. By default, this is 300 seconds (or 5 minutes).
+        :param verify_ssl: Whether or not to verify SSL connections
+        :param cert: The path to client certificate. A single path to .pem file or a Tuple (.cer file, .pem file)
+        :return: The JSON-decoded result from the server
+        :raise MyGeotabException: Raises when an exception occurs on the MyGeotab server
+        :raise TimeoutException: Raises when the request does not respond after some time.
+        :raise aiohttp.ClientResponseError: Raises when there is an HTTP status code that indicates failure.
+        """
+        api_endpoint = api.get_api_url(server)
+        params = dict(id=-1, method=method, params=parameters)
+        headers = get_headers()
+    
+        try:
+            response = self.session.post(
                 api_endpoint, data=json_serialize(params), headers=headers, timeout=timeout, allow_redirects=True
             )
             response.raise_for_status()
             content_type = response.headers.get("Content-Type")
             body = await response.text()
-    except (TimeoutError, asyncio.TimeoutError) as exc:
-        raise TimeoutException(server) from exc
-    if content_type and "application/json" not in content_type.lower():
-        return body
-    return api._process(json_deserialize(body))
+        except (TimeoutError, asyncio.TimeoutError) as exc:
+            raise TimeoutException(server) from exc
+        if content_type and "application/json" not in content_type.lower():
+            return body
+        return api._process(json_deserialize(body))
