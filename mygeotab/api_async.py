@@ -241,7 +241,7 @@ class API(api.API):
         except (TimeoutError, asyncio.TimeoutError) as exc:
             raise TimeoutException(server) from exc"""
         
-        raise Exception(content_type)
+        raise Exception(body)
 
         if content_type and "application/json" not in content_type.lower():
             return body
