@@ -53,7 +53,7 @@ class API(api.API):
                 ssl_context.load_cert_chain(cer, key)
 
         api.conn = aiohttp.TCPConnector(ssl=ssl_context, loop=loop)
-        api.session = aiohttp.ClientSession(connector=api.conn)
+        api.session = aiohttp.ClientSession(connector=api.conn, raise_for_status=True)
         api.__init = True
 
         return api
@@ -224,13 +224,12 @@ class API(api.API):
         api_endpoint = api.get_api_url(server)
         params = dict(id=-1, method=method, params=parameters)
         headers = get_headers()
-    
-        response = self.session.post(
+
+        async with self.session.post(
                 api_endpoint, data=json_serialize(params), headers=headers, timeout=timeout, allow_redirects=True
-            )
-        response.raise_for_status()
-        content_type = response.headers.get("Content-Type")
-        body = await response.text()
+            ) as response: 
+            content_type = response.headers.get("Content-Type")
+            body = response.text()
         
         """try:
             response = self.session.post(
