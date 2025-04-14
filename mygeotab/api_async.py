@@ -101,7 +101,12 @@ class API(api.API):
         if "credentials" not in params and self.credentials.session_id:
             params["credentials"] = self.credentials.get_param()
 
-        try:
+        result = await self._query(self._server, method, params, verify_ssl=self._is_verify_ssl, cert=self._cert)
+        if result is not None:
+            self.__reauthorize_count = 0
+        return result
+    
+        """try:
             result = await self._query(self._server, method, params, verify_ssl=self._is_verify_ssl, cert=self._cert)
             if result is not None:
                 self.__reauthorize_count = 0
@@ -118,7 +123,7 @@ class API(api.API):
                     raise AuthenticationException(
                         self.credentials.username, self.credentials.database, self.credentials.server
                     ) from exception
-            raise Exception(f'reauthorisation count {self.__reauthorize_count}')
+            raise Exception(f'reauthorisation count {self.__reauthorize_count}')"""
 
     async def multi_call_async(self, calls):
         """Performs an async multi-call to the API
