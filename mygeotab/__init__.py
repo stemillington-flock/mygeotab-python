@@ -7,7 +7,7 @@ __version__ = "0.9.2"
 from .api import Credentials, server_call
 from .exceptions import MyGeotabException, AuthenticationException, TimeoutException
 
-from .api_async import API, server_call_async
+from .api_async import API
 
 __all__ = [
     "API",
